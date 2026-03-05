@@ -105,20 +105,21 @@ PostRoute.get("/user/:username", requireAuth, async (req: Request, res: Response
             return;
         }
 
-        const posts = await prisma.post.findMany({
-            where: { authorId: user.id },
-            include: { author: { select: { name: true, username: true } } },
-            orderBy: { createdAt: "desc" },
-        });
-
-        const comments = await prisma.comment.findMany({
-            where: { authorId: user.id },
-            include: {
-                author: { select: { name: true, username: true } },
-                post: { select: { id: true, title: true } },
-            },
-            orderBy: { createdAt: "desc" },
-        });
+        const [posts, comments] = await Promise.all([
+            prisma.post.findMany({
+                where: { authorId: user.id },
+                include: { author: { select: { name: true, username: true } } },
+                orderBy: { createdAt: "desc" },
+            }),
+            prisma.comment.findMany({
+                where: { authorId: user.id },
+                include: {
+                    author: { select: { name: true, username: true } },
+                    post: { select: { id: true, title: true } },
+                },
+                orderBy: { createdAt: "desc" },
+            }),
+        ]);
 
         res.status(200).json({ user, posts, comments });
     } catch (error) {

@@ -1,26 +1,25 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
+import { useDebouncedCallback } from "@/hooks/use-debounce";
 
 export default function SearchBar() {
     const router = useRouter();
     const [query, setQuery] = useState("");
-    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const debouncedSearch = useCallback((value: string) => {
-        if (timerRef.current) clearTimeout(timerRef.current);
-
-        timerRef.current = setTimeout(() => {
+    const { debounced: debouncedSearch, cancel } = useDebouncedCallback(
+        (value: string) => {
             if (value.trim()) {
                 router.push(`/dashboard?search=${encodeURIComponent(value.trim())}`);
             } else {
                 router.push("/dashboard");
             }
-        }, 300);
-    }, [router]);
+        },
+        300
+    );
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
@@ -30,7 +29,7 @@ export default function SearchBar() {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (timerRef.current) clearTimeout(timerRef.current);
+        cancel();
         if (query.trim()) {
             router.push(`/dashboard?search=${encodeURIComponent(query.trim())}`);
         } else {
