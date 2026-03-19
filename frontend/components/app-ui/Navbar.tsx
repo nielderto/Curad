@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -46,10 +47,12 @@ export default function Navbar({ user }: { user: { name: string; username: strin
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <button className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer">
-                                <img
+                                <Image
                                     src={`https://api.dicebear.com/9.x/pixel-art/svg?seed=${user.username || user.email}`}
                                     alt="avatar"
-                                    className="h-8 w-8 rounded-full bg-neutral-800"
+                                    width={32}
+                                    height={32}
+                                    className="rounded-full bg-neutral-800"
                                 />
                             </button>
                         </DropdownMenuTrigger>

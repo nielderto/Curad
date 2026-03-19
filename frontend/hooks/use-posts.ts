@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiFetch, apiPost, apiPut, apiDelete } from "@/lib/api";
 
-interface Post {
+export interface Post {
     id: number;
     title: string;
     content: string | null;
@@ -12,59 +13,65 @@ interface Post {
     createdAt: string;
 }
 
+interface PostsPage {
+    message: string;
+    posts: Post[];
+    nextCursor: number | null;
+}
+
 export function usePosts(searchQuery?: string) {
-    const [posts, setPosts] = useState<Post[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    const fetchPosts = useCallback(async (query?: string) => {
-        setLoading(true);
-        try {
-            const url = query
-                ? `http://localhost:3001/api/posts?search=${encodeURIComponent(query)}`
-                : "http://localhost:3001/api/posts";
-
-            const res = await fetch(url, { credentials: "include" });
-            if (res.ok) {
-                const data = await res.json();
-                setPosts(data.posts || []);
-            }
-        } catch (error) {
-            console.error("Failed to fetch posts:", error);
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchPosts(searchQuery);
-    }, [searchQuery, fetchPosts]);
-
-    return { posts, loading, fetchPosts };
+    return useInfiniteQuery({
+        queryKey: ["posts", searchQuery ?? ""],
+        queryFn: async ({ pageParam }) => {
+            const params = new URLSearchParams();
+            if (searchQuery) params.set("search", searchQuery);
+            if (pageParam) params.set("cursor", String(pageParam));
+            const qs = params.toString();
+            return apiFetch<PostsPage>(`/api/posts${qs ? `?${qs}` : ""}`);
+        },
+        initialPageParam: undefined as number | undefined,
+        getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    });
 }
 
 export function usePost(id: string) {
-    const [post, setPost] = useState<Post | null>(null);
-    const [loading, setLoading] = useState(true);
+    return useQuery({
+        queryKey: ["post", id],
+        queryFn: () => apiFetch<{ post: Post }>(`/api/posts/${id}`).then((d) => d.post),
+        enabled: !!id,
+    });
+}
 
-    useEffect(() => {
-        const fetchPost = async () => {
-            try {
-                const res = await fetch(`http://localhost:3001/api/posts/${id}`, {
-                    credentials: "include",
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    setPost(data.post);
-                }
-            } catch (error) {
-                console.error("Failed to fetch post:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
+export function useCreatePost() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (body: { title: string; content: string }) =>
+            apiPost<{ post: Post }>("/api/posts", body),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["posts"] });
+        },
+    });
+}
 
-        fetchPost();
-    }, [id]);
+export function useUpdatePost(id: string) {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (body: { title: string; content: string }) =>
+            apiPut<{ post: Post }>(`/api/posts/${id}`, body),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["posts"] });
+            queryClient.invalidateQueries({ queryKey: ["post", id] });
+        },
+    });
+}
 
-    return { post, loading };
+export function useDeletePost(id: string) {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: () => apiDelete(`/api/posts/${id}`),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["posts"] });
+            queryClient.removeQueries({ queryKey: ["post", id] });
+        },
+    });
 }

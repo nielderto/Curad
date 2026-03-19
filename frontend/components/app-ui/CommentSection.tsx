@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Trash2, MessageCircle, Reply } from "lucide-react";
 import { useComments, type Comment } from "@/hooks/use-comments";
 import Link from "next/link";
+import Image from "next/image";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -24,7 +25,7 @@ interface CommentSectionProps {
     currentUserId: string;
 }
 
-function CommentItem({
+const CommentItem = memo(function CommentItem({
     comment,
     currentUserId,
     postAuthorId,
@@ -58,22 +59,21 @@ function CommentItem({
     return (
         <div>
             <div className="flex gap-3 py-4">
-                {/* Left column: avatar + thread line */}
                 <div className="flex flex-col items-center">
                     <Link href={`/dashboard/profile/${comment.author.username}`} className="shrink-0">
-                        <img
+                        <Image
                             src={`https://api.dicebear.com/9.x/pixel-art/svg?seed=${comment.author.username || "user"}`}
                             alt="avatar"
-                            className="h-8 w-8 rounded-full bg-neutral-800 cursor-pointer hover:ring-2 hover:ring-emerald-500/50 transition-all"
+                            width={32}
+                            height={32}
+                            className="rounded-full bg-neutral-800 cursor-pointer hover:ring-2 hover:ring-emerald-500/50 transition-all"
                         />
                     </Link>
-                    {/* Thread line extending from avatar down */}
                     {hasReplies && (
                         <div className="w-px flex-1 bg-neutral-700/50 hover:bg-emerald-500/40 transition-colors mt-2 rounded-full" />
                     )}
                 </div>
 
-                {/* Right column: comment content */}
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
@@ -136,7 +136,6 @@ function CommentItem({
                     </div>
                     <p className="text-neutral-300 text-sm mt-1 whitespace-pre-wrap">{comment.content}</p>
 
-                    {/* Inline reply form */}
                     {replyingTo === comment.id && (
                         <div className="mt-3">
                             <Textarea
@@ -171,7 +170,6 @@ function CommentItem({
                 </div>
             </div>
 
-            {/* Nested replies with continuous thread line */}
             {hasReplies && (
                 <div className="ml-4 border-l-2 border-neutral-700/40 hover:border-emerald-500/30 transition-colors pl-4">
                     {comment.replies!.map((reply) => (
@@ -195,7 +193,7 @@ function CommentItem({
             )}
         </div>
     );
-}
+});
 
 export default function CommentSection({ postId, postAuthorId, currentUserId }: CommentSectionProps) {
     const { comments, loading, addComment, deleteComment } = useComments(postId);
@@ -234,7 +232,6 @@ export default function CommentSection({ postId, postAuthorId, currentUserId }: 
         setReplyContent("");
     };
 
-    // Separate top-level comments from replies
     const topLevelComments = comments.filter((c) => !c.parentId);
     const repliesByParent = comments.reduce<Record<string, Comment[]>>((acc, c) => {
         if (c.parentId) {
@@ -244,7 +241,6 @@ export default function CommentSection({ postId, postAuthorId, currentUserId }: 
         return acc;
     }, {});
 
-    // Attach replies to their parent comments
     const commentsWithReplies = topLevelComments.map((c) => ({
         ...c,
         replies: repliesByParent[c.id] || [],
@@ -259,7 +255,6 @@ export default function CommentSection({ postId, postAuthorId, currentUserId }: 
                 </h2>
             </div>
 
-            {/* Comments list first */}
             {loading ? (
                 <p className="text-neutral-500 text-sm text-center py-4">Loading comments...</p>
             ) : comments.length === 0 ? (
@@ -290,7 +285,6 @@ export default function CommentSection({ postId, postAuthorId, currentUserId }: 
                 </div>
             )}
 
-            {/* Comment input below the list, hidden for post author */}
             {!isPostAuthor && (
                 <form onSubmit={handleSubmit} className="mt-6 pt-6 border-t border-neutral-800">
                     <Textarea

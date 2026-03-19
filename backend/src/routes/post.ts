@@ -2,14 +2,27 @@ import Router from "express";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import type { Request, Response } from "express";
+import { getCache, setCache, clearCache } from "../lib/cache";
 
 export const PostRoute = Router();
 
 PostRoute.get("/", requireAuth, async (req, res) => {
     try {
-        const search = req.query.search as string | undefined;
+        const search = req.query.search as string || "";
+        const cursor = req.query.cursor ? Number(req.query.cursor) : undefined;
+        const cacheKey = `posts:${search}:${cursor ?? "start"}`;
+        const cached = getCache(cacheKey);
+
+        if (cached) {
+            return res.status(200).json(cached);
+        }
 
         const posts = await prisma.post.findMany({
+            take: 11,
+            ...(cursor && {
+                skip: 1,
+                cursor: { id: cursor },
+            }),
             where: {
                 ...(search && {
                     title: {
@@ -20,17 +33,27 @@ PostRoute.get("/", requireAuth, async (req, res) => {
             },
             include: { author: { select: { name: true, username: true } } },
             orderBy: { id: "desc" },
-        })
+        });
 
-        res.status(200).json({
+        const hasMore = posts.length > 10;
+        if (hasMore) posts.pop();
+
+        const nextCursor = hasMore ? posts[posts.length - 1]?.id : null;
+
+        const response = {
             message: posts.length > 0 ? "Posts fetched successfully" : "No posts found",
             posts,
-        });
+            nextCursor,
+        };
+
+        setCache(cacheKey, response);
+        res.status(200).json(response);
+
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: "Internal server error" });
     }
-})
+});
 
 PostRoute.post("/", requireAuth, async (req: Request, res: Response) => {
     try {
@@ -44,6 +67,8 @@ PostRoute.post("/", requireAuth, async (req: Request, res: Response) => {
         const post = await prisma.post.create({
             data: { title, content, authorId: res.locals.session.user.id },
         })
+
+        clearCache();
 
         res.status(201).json({
             message: "Post created successfully",
@@ -78,6 +103,8 @@ PostRoute.put("/:id", requireAuth, async (req: Request, res: Response) => {
             where: { id: Number(id) },
             data: { title, content },
         })
+
+        clearCache();
 
         res.status(200).json({
             message: "Post updated successfully",
@@ -161,11 +188,14 @@ PostRoute.delete("/:id", requireAuth, async (req: Request, res: Response) => {
             res.status(404).json({ error: "Post not found" });
             return;
         }
-
+        
+        
         const post = await prisma.post.delete({
             where: { id: Number(id) },
         })
-
+        
+        clearCache();
+        
         res.status(200).json({
             message: "Post deleted successfully",
             post,

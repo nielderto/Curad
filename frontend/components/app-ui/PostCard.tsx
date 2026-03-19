@@ -1,4 +1,6 @@
+import { memo } from "react";
 import Link from "next/link";
+import Image from "next/image";
 
 interface PostCardProps {
     id: number;
@@ -8,7 +10,7 @@ interface PostCardProps {
     createdAt: string;
 }
 
-export default function PostCard({ id, title, content, author, createdAt }: PostCardProps) {
+const PostCard = memo(function PostCard({ id, title, content, author, createdAt }: PostCardProps) {
     const date = new Date(createdAt);
     const formattedDate = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
     const formattedTime = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
@@ -25,10 +27,12 @@ export default function PostCard({ id, title, content, author, createdAt }: Post
                             href={`/dashboard/profile/${author.username}`}
                             onClick={(e) => e.stopPropagation()}
                         >
-                            <img
+                            <Image
                                 src={`https://api.dicebear.com/9.x/pixel-art/svg?seed=${author.username || "user"}`}
                                 alt="avatar"
-                                className="h-5 w-5 rounded-full bg-neutral-800 hover:ring-2 hover:ring-emerald-500/50 transition-all"
+                                width={20}
+                                height={20}
+                                className="rounded-full bg-neutral-800 hover:ring-2 hover:ring-emerald-500/50 transition-all"
                             />
                         </Link>
                         <Link
@@ -55,4 +59,6 @@ export default function PostCard({ id, title, content, author, createdAt }: Post
             </div>
         </article>
     );
-}
+});
+
+export default PostCard;

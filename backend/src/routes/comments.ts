@@ -2,6 +2,7 @@ import Router from "express";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import type { Request, Response } from "express";
+import { getCache, setCache, clearCache } from "../lib/cache";
 
 export const CommentsRoute = Router();
 
@@ -53,6 +54,8 @@ CommentsRoute.post("/post/:postId", requireAuth, async (req: Request, res: Respo
             include: { author: { select: { name: true, username: true } } },
         });
 
+        clearCache();
+
         res.status(201).json({ message: "Comment created successfully", comment });
     } catch (error) {
         console.error(error);
@@ -76,6 +79,8 @@ CommentsRoute.delete("/:id", requireAuth, async (req: Request, res: Response) =>
         await prisma.comment.delete({
             where: { id },
         });
+
+        clearCache();
 
         res.status(200).json({ message: "Comment deleted successfully" });
     } catch (error) {

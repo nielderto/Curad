@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/api";
 
 interface ProfileUser {
     id: string;
@@ -28,33 +29,23 @@ interface ProfileComment {
     post: { id: number; title: string };
 }
 
+interface ProfileData {
+    user: ProfileUser;
+    posts: ProfilePost[];
+    comments: ProfileComment[];
+}
+
 export function useProfile(username: string) {
-    const [user, setUser] = useState<ProfileUser | null>(null);
-    const [posts, setPosts] = useState<ProfilePost[]>([]);
-    const [comments, setComments] = useState<ProfileComment[]>([]);
-    const [loading, setLoading] = useState(true);
+    const query = useQuery({
+        queryKey: ["profile", username],
+        queryFn: () => apiFetch<ProfileData>(`/api/posts/user/${username}`),
+        enabled: !!username,
+    });
 
-    const fetchProfile = useCallback(async () => {
-        try {
-            const res = await fetch(`http://localhost:3001/api/posts/user/${username}`, {
-                credentials: "include",
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setUser(data.user);
-                setPosts(data.posts || []);
-                setComments(data.comments || []);
-            }
-        } catch (error) {
-            console.error("Failed to fetch profile:", error);
-        } finally {
-            setLoading(false);
-        }
-    }, [username]);
-
-    useEffect(() => {
-        fetchProfile();
-    }, [fetchProfile]);
-
-    return { user, posts, comments, loading };
+    return {
+        user: query.data?.user ?? null,
+        posts: query.data?.posts ?? [],
+        comments: query.data?.comments ?? [],
+        loading: query.isLoading,
+    };
 }

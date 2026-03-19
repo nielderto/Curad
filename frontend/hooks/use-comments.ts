@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiFetch, apiPost, apiDelete } from "@/lib/api";
 
-interface Comment {
+export interface Comment {
     id: string;
     content: string;
     createdAt: string;
@@ -13,59 +14,69 @@ interface Comment {
     replies?: Comment[];
 }
 
-export type { Comment };
-
 export function useComments(postId: string | number) {
-    const [comments, setComments] = useState<Comment[]>([]);
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
 
-    const fetchComments = useCallback(async () => {
-        try {
-            const res = await fetch(`http://localhost:3001/api/comments/post/${postId}`, {
-                credentials: "include",
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setComments(data.comments || []);
+    const query = useQuery({
+        queryKey: ["comments", String(postId)],
+        queryFn: () =>
+            apiFetch<{ comments: Comment[] }>(`/api/comments/post/${postId}`).then(
+                (d) => d.comments,
+            ),
+        enabled: !!postId,
+    });
+
+    const addMutation = useMutation({
+        mutationFn: (vars: { content: string; parentId?: string }) =>
+            apiPost(`/api/comments/post/${postId}`, vars),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["comments", String(postId)] });
+        },
+    });
+
+    const deleteMutation = useMutation({
+        mutationFn: (commentId: string) => apiDelete(`/api/comments/${commentId}`),
+        onMutate: async (commentId) => {
+            await queryClient.cancelQueries({ queryKey: ["comments", String(postId)] });
+            const previous = queryClient.getQueryData<Comment[]>(["comments", String(postId)]);
+            queryClient.setQueryData<Comment[]>(
+                ["comments", String(postId)],
+                (old) => old?.filter((c) => c.id !== commentId) ?? [],
+            );
+            return { previous };
+        },
+        onError: (_err, _id, context) => {
+            if (context?.previous) {
+                queryClient.setQueryData(["comments", String(postId)], context.previous);
             }
-        } catch (error) {
-            console.error("Failed to fetch comments:", error);
-        } finally {
-            setLoading(false);
-        }
-    }, [postId]);
-
-    useEffect(() => {
-        fetchComments();
-    }, [fetchComments]);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ["comments", String(postId)] });
+        },
+    });
 
     const addComment = async (content: string, parentId?: string) => {
-        const res = await fetch(`http://localhost:3001/api/comments/post/${postId}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ content, parentId }),
-        });
-
-        if (res.ok) {
-            await fetchComments();
+        try {
+            await addMutation.mutateAsync({ content, parentId });
             return true;
+        } catch {
+            return false;
         }
-        return false;
     };
 
     const deleteComment = async (commentId: string) => {
-        const res = await fetch(`http://localhost:3001/api/comments/${commentId}`, {
-            method: "DELETE",
-            credentials: "include",
-        });
-
-        if (res.ok) {
-            await fetchComments();
+        try {
+            await deleteMutation.mutateAsync(commentId);
             return true;
+        } catch {
+            return false;
         }
-        return false;
     };
 
-    return { comments, loading, addComment, deleteComment };
+    return {
+        comments: query.data ?? [],
+        loading: query.isLoading,
+        addComment,
+        deleteComment,
+    };
 }
